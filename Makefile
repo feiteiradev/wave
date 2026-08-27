@@ -1,10 +1,13 @@
-.PHONY: build test app run clean
+.PHONY: build test app icon run clean
 
 build:
 	swift build
 
 test:
 	swift test
+
+icon:
+	./Scripts/make-icon.sh
 
 app:
 	./Scripts/make-app.sh
