@@ -125,15 +125,51 @@ final class RecordingStrategy: TextInsertionStrategy, @unchecked Sendable {
     var inserted: [String] { texts.current }
 }
 
+/// Models a clipboard that can hold non-text content, so the restore rules can
+/// be checked against images and files as well as strings.
+enum ClipboardContent: Equatable, Sendable {
+    case empty
+    case text(String)
+    /// Stands in for an image, a file promise, or anything else with no string
+    /// flavour.
+    case binary(String)
+
+    var stringValue: String? {
+        if case let .text(value) = self { return value }
+        return nil
+    }
+}
+
+struct FakeSnapshot: ClipboardSnapshot {
+    let content: ClipboardContent
+}
+
 final class FakeClipboard: SystemClipboard, @unchecked Sendable {
-    private let value: Locked<String?>
+    private let content: Locked<ClipboardContent>
 
-    init(_ value: String? = nil) { self.value = Locked(value) }
+    init(_ value: String? = nil) {
+        self.content = Locked(value.map(ClipboardContent.text) ?? .empty)
+    }
 
-    var stringContents: String? { value.current }
+    init(content: ClipboardContent) {
+        self.content = Locked(content)
+    }
+
+    var currentContent: ClipboardContent { content.current }
+
+    var stringContents: String? { content.current.stringValue }
 
     func setStringContents(_ newValue: String?) {
-        value.withValue { $0 = newValue }
+        content.withValue { $0 = newValue.map(ClipboardContent.text) ?? .empty }
+    }
+
+    func snapshot() -> any ClipboardSnapshot {
+        FakeSnapshot(content: content.current)
+    }
+
+    func restore(_ snapshot: any ClipboardSnapshot) {
+        guard let snapshot = snapshot as? FakeSnapshot else { return }
+        content.withValue { $0 = snapshot.content }
     }
 }
 

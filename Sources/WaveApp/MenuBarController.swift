@@ -39,6 +39,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
+        // Otherwise AppKit recomputes enablement at open time and undoes the
+        // disabled Start Recording item during Processing.
+        menu.autoenablesItems = false
 
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)

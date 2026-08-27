@@ -11,6 +11,7 @@ import WaveCore
 final class NotchHUDController {
     private let model: AppModel
     private var panel: NSPanel?
+    private var hostingView: NSHostingView<NotchHUDView>?
     private var cancellables: Set<AnyCancellable> = []
 
     init(model: AppModel) {
@@ -33,10 +34,18 @@ final class NotchHUDController {
             return
         }
         let panel = existingPanel()
-        panel.contentView = NSHostingView(
-            rootView: NotchHUDView(state: state, waveform: model.waveform)
-                .environmentObject(model)
-        )
+        let root = NotchHUDView(state: state, waveform: model.waveform)
+        if let hostingView {
+            // Updating the root view rather than replacing the hosting view
+            // preserves SwiftUI's view identity, so the HUD's transitions
+            // actually run instead of snapping — this is hit on every level
+            // update while recording.
+            hostingView.rootView = root
+        } else {
+            let view = NSHostingView(rootView: root)
+            hostingView = view
+            panel.contentView = view
+        }
         reposition()
         panel.orderFrontRegardless()
     }

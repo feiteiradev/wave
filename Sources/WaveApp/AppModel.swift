@@ -17,9 +17,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var waveform: [Float] = []
     @Published private(set) var installedSpeechModel: ModelDescriptor?
     @Published private(set) var installedCleanupModel: ModelDescriptor?
-    /// Keyed by model id, so a failed download marks only the model the user
-    /// actually tried to install.
-    @Published private(set) var installPhase: [String: ModelInstallPhase] = [:]
+    /// The one install in flight, or the last one that failed. Wave installs a
+    /// single model at a time: two concurrent downloads of the same kind would
+    /// race to claim the active slot.
+    @Published private(set) var installState: ModelInstallState?
     @Published private(set) var microphones: [AudioInputDevice] = []
     @Published private(set) var permissions: [Permission: Bool] = [:]
     @Published private(set) var hotkeyConflicts: [DictationMode] = []
@@ -194,23 +195,33 @@ final class AppModel: ObservableObject {
     /// Downloads and activates a model, keeping the current one until the new
     /// one has validated (PRD §9.2, AC9).
     func install(_ descriptor: ModelDescriptor) async {
-        installPhase[descriptor.id] = .downloading(fraction: 0)
+        // Ignore a second Install while one is running (PRD §9.2: the active
+        // model must never be replaced by a race).
+        guard installState == nil || installState?.isFinished == true else { return }
+        installState = ModelInstallState(descriptor: descriptor, phase: .downloading(fraction: 0))
         do {
             _ = try await modelManager.install(descriptor) { [weak self] phase in
-                Task { @MainActor in self?.installPhase[descriptor.id] = phase }
+                Task { @MainActor in self?.updateInstallPhase(phase, for: descriptor) }
             }
             await engines.invalidate(kind: descriptor.kind)
             await refreshInstalledModels()
+            // Success is visible from the row's "Installed" badge; clear the
+            // progress section so it does not linger over the next install.
+            installState = nil
         } catch {
-            installPhase[descriptor.id] = .failed(needsManualRetry: true)
+            installState = ModelInstallState(descriptor: descriptor, phase: .failed(needsManualRetry: true))
         }
+    }
+
+    private func updateInstallPhase(_ phase: ModelInstallPhase, for descriptor: ModelDescriptor) {
+        guard installState?.descriptor.id == descriptor.id else { return }
+        installState?.phase = phase
     }
 
     func uninstallCleanupModel() async {
         await modelManager.uninstall(kind: .cleanup)
         await engines.invalidate(kind: .cleanup)
-        installPhase.removeValue(forKey: ModelCatalog.defaultCleanupModel.id)
-        installedCleanupModel.map { installPhase.removeValue(forKey: $0.id) }
+        if installState?.descriptor.kind == .cleanup { installState = nil }
         await refreshInstalledModels()
     }
 
@@ -222,6 +233,19 @@ final class AppModel: ObservableObject {
         let directory = logger.directory
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         NSWorkspace.shared.open(directory)
+    }
+}
+
+/// The single model install in flight.
+struct ModelInstallState: Equatable {
+    var descriptor: ModelDescriptor
+    var phase: ModelInstallPhase
+
+    var isFinished: Bool {
+        switch phase {
+        case .finished, .failed: true
+        default: false
+        }
     }
 }
 

@@ -146,3 +146,58 @@ struct ClipboardGuardTests {
         #expect(guardian.isHoldingClipboard == false)
     }
 }
+
+@Suite("ClipboardGuard — non-text clipboards")
+struct ClipboardGuardBinaryContentTests {
+    @Test("an image on the clipboard survives a dictation")
+    func restoresNonTextContent() {
+        // The user copied an image, then dictated. Snapshotting only the string
+        // flavour would have found nothing and cleared the image on restore.
+        let clipboard = FakeClipboard(content: .binary("uma imagem"))
+        let guardian = ClipboardGuard(clipboard: clipboard)
+
+        guardian.place("transcrição")
+        #expect(clipboard.stringContents == "transcrição")
+        #expect(guardian.restoreIfUnchanged())
+        #expect(clipboard.currentContent == .binary("uma imagem"))
+    }
+
+    @Test("an image copied during the retention period is not clobbered")
+    func doesNotClobberNewBinaryContent() {
+        let clipboard = FakeClipboard("anterior")
+        let guardian = ClipboardGuard(clipboard: clipboard)
+
+        guardian.place("transcrição")
+        clipboard.restore(FakeSnapshot(content: .binary("imagem nova")))
+        #expect(guardian.restoreIfUnchanged() == false)
+        #expect(clipboard.currentContent == .binary("imagem nova"))
+    }
+
+    @Test("an empty clipboard is restored as empty, not as stale text")
+    func restoresEmptyClipboard() {
+        let clipboard = FakeClipboard(content: .empty)
+        let guardian = ClipboardGuard(clipboard: clipboard)
+
+        guardian.place("transcrição")
+        #expect(guardian.restoreIfUnchanged())
+        #expect(clipboard.currentContent == .empty)
+    }
+
+    @Test("declining after placing hands the original clipboard to the next rung")
+    func decliningRungRestoresBeforeFallingThrough() async {
+        // What SimulatedPasteInserter does when it places the text and then
+        // finds it cannot post the paste event.
+        let clipboard = FakeClipboard(content: .binary("uma imagem"))
+        let guardian = ClipboardGuard(clipboard: clipboard)
+
+        guardian.place("transcrição")
+        guardian.restoreIfUnchanged()
+        #expect(clipboard.currentContent == .binary("uma imagem"))
+
+        // The fallback rung now snapshots the user's content, not the transcription.
+        let fallback = ClipboardInsertionStrategy(guardian: guardian)
+        _ = try? await fallback.insert("transcrição")
+        #expect(guardian.restoreIfUnchanged())
+        #expect(clipboard.currentContent == .binary("uma imagem"))
+    }
+}

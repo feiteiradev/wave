@@ -8,6 +8,12 @@ import WaveCore
 struct VocabularySettingsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selection: VocabularyTerm.ID?
+    /// The alias editor's raw text.
+    ///
+    /// Held separately rather than derived from the model: round-tripping
+    /// through `[String]` strips the trailing newline the moment Return is
+    /// pressed, which makes it impossible to start a second alias line.
+    @State private var aliasDraft: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,15 +52,20 @@ struct VocabularySettingsView: View {
                     TextField("DearLift", text: $model.preferences.vocabulary[index].term)
                 }
                 Section("Also heard as") {
-                    TextEditor(text: aliasesBinding(for: index))
+                    TextEditor(text: $aliasDraft)
                         .font(.body.monospaced())
                         .frame(minHeight: 120)
+                        .onChange(of: aliasDraft) { _, newValue in
+                            model.preferences.vocabulary[index].aliases = Self.aliases(from: newValue)
+                        }
                     Text("One per line. Matching ignores capitalization and only replaces whole words.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
+            .onChange(of: selection) { _, _ in loadDraft() }
+            .onAppear(perform: loadDraft)
         } else {
             VStack(spacing: 6) {
                 Text("No term selected").foregroundStyle(.secondary)
@@ -74,6 +85,7 @@ struct VocabularySettingsView: View {
                 let term = VocabularyTerm(term: "", aliases: [])
                 model.preferences.vocabulary.append(term)
                 selection = term.id
+                aliasDraft = ""
             } label: {
                 Image(systemName: "plus")
             }
@@ -98,15 +110,16 @@ struct VocabularySettingsView: View {
         return model.preferences.vocabulary.firstIndex { $0.id == selection }
     }
 
-    private func aliasesBinding(for index: Int) -> Binding<String> {
-        Binding(
-            get: { model.preferences.vocabulary[index].aliases.joined(separator: "\n") },
-            set: { newValue in
-                model.preferences.vocabulary[index].aliases = newValue
-                    .components(separatedBy: .newlines)
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-            }
-        )
+    private func loadDraft() {
+        guard let index = selectedIndex else { return }
+        aliasDraft = model.preferences.vocabulary[index].aliases.joined(separator: "\n")
+    }
+
+    /// Blank lines are dropped on the way into the model, but stay visible in
+    /// the editor while the user is typing.
+    static func aliases(from text: String) -> [String] {
+        text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 }

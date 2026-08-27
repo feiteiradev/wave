@@ -15,8 +15,10 @@ APP="$ROOT/build/$APP_NAME.app"
 
 # Any Apple Development identity in the keychain; override with SIGN_IDENTITY.
 if [ -z "${SIGN_IDENTITY:-}" ]; then
+  # `|| true` matters: with `set -euo pipefail`, grep finding nothing would
+  # abort the script here and make the ad-hoc fallback below unreachable.
   SIGN_IDENTITY=$(security find-identity -v -p codesigning \
-    | grep "Apple Development" | head -1 | sed -E 's/.*"(.*)"/\1/')
+    | grep "Apple Development" | head -1 | sed -E 's/.*"(.*)"/\1/' || true)
 fi
 
 echo "==> Building ($CONFIGURATION)"

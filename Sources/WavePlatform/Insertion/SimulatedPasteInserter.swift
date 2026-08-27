@@ -33,7 +33,9 @@ public struct SimulatedPasteInserter: TextInsertionStrategy {
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: commandV, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: commandV, keyDown: false)
         else {
-            guardian.abandon()
+            // Put the clipboard back before declining, so the fallback rung
+            // snapshots the user's contents rather than this transcription.
+            guardian.restoreIfUnchanged()
             return false
         }
         keyDown.flags = .maskCommand

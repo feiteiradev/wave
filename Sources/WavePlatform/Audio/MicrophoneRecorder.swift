@@ -35,10 +35,12 @@ public actor MicrophoneRecorder: AudioRecording {
             } catch {
                 // The chosen microphone is gone. Fall back rather than fail,
                 // and tell the user (PRD §11.1).
+                selectSystemDefaultInput()
                 deviceName = "System Default"
                 onFallbackToDefault(microphoneUniqueID)
             }
         } else {
+            selectSystemDefaultInput()
             deviceName = "System Default"
         }
 
@@ -122,14 +124,37 @@ public actor MicrophoneRecorder: AudioRecording {
         return Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
     }
 
+    /// Points the engine's input back at whatever the system is using.
+    ///
+    /// The engine is created once and reused, and the AUHAL remembers the last
+    /// device it was pointed at. Without this, switching back to "System
+    /// Default" would keep capturing from the previously chosen microphone
+    /// while diagnostics claimed otherwise.
+    private func selectSystemDefaultInput() {
+        guard let audioUnit = engine.inputNode.audioUnit,
+              var deviceID = AudioDeviceLister.defaultInputDeviceID()
+        else { return }
+        AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &deviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+    }
+
     /// Points the engine's input at a specific device. Throws if it is gone.
     private func selectInputDevice(uniqueID: String) throws -> String {
         guard let device = AudioDeviceLister.inputDevices().first(where: { $0.uniqueID == uniqueID }) else {
             throw WaveError.microphoneUnavailable
         }
+        guard let audioUnit = engine.inputNode.audioUnit else {
+            throw WaveError.microphoneUnavailable
+        }
         var deviceID = device.id
         let status = AudioUnitSetProperty(
-            engine.inputNode.audioUnit!,
+            audioUnit,
             kAudioOutputUnitProperty_CurrentDevice,
             kAudioUnitScope_Global,
             0,

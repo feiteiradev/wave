@@ -65,7 +65,7 @@ struct OnboardingView: View {
             isDone: model.installedSpeechModel != nil
         ) {
             if model.installedSpeechModel == nil {
-                switch model.installPhase[ModelCatalog.defaultSpeechModel.id] {
+                switch model.installState?.phase {
                 case let .downloading(fraction):
                     ProgressView(value: fraction).frame(width: 90)
                 case .validating, .activating, .removingPrevious:

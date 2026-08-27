@@ -22,7 +22,7 @@ struct ModelSectionView: View {
                     ModelRow(
                         descriptor: descriptor,
                         isInstalled: installed?.id == descriptor.id,
-                        phase: model.installPhase[descriptor.id],
+                        phase: phase(for: descriptor),
                         isBusy: isBusy
                     ) {
                         Task { await model.install(descriptor) }
@@ -52,13 +52,20 @@ struct ModelSectionView: View {
         .task { await model.refreshInstalledModels() }
     }
 
-    /// The phase of whichever model of this kind is mid-install.
+    /// The phase of the install in flight, if it belongs to this section.
     private var activePhase: ModelInstallPhase? {
-        ModelCatalog.models(of: kind).compactMap { model.installPhase[$0.id] }.first
+        guard model.installState?.descriptor.kind == kind else { return nil }
+        return model.installState?.phase
     }
 
+    private func phase(for descriptor: ModelDescriptor) -> ModelInstallPhase? {
+        guard model.installState?.descriptor.id == descriptor.id else { return nil }
+        return model.installState?.phase
+    }
+
+    /// Any install in flight disables every Install button, of either kind.
     private var isBusy: Bool {
-        switch activePhase {
+        switch model.installState?.phase {
         case .downloading, .validating, .activating, .removingPrevious, .retrying: true
         default: false
         }
