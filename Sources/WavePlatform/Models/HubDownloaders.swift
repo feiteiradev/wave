@@ -27,6 +27,8 @@ public struct WhisperModelDownloader: WaveCore.ModelDownloader {
         try Self.flatten(downloaded, into: destination)
     }
 
+    /// Lifts a nested download into the staging root, so the installed layout
+    /// is always `…/<kind>/<id>/<model files>`.
     static func flatten(_ source: URL, into destination: URL) throws {
         guard source.standardizedFileURL != destination.standardizedFileURL else { return }
         let fileManager = FileManager.default

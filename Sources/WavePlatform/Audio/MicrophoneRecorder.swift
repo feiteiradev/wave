@@ -10,7 +10,7 @@ public actor MicrophoneRecorder: AudioRecording {
 
     private let engine = AVAudioEngine()
     private let detector = SpeechDetector()
-    private var samples: [Float] = []
+    private let accumulator = SampleAccumulator()
     private var deviceName = "System Default"
     private var isRunning = false
 
@@ -27,7 +27,7 @@ public actor MicrophoneRecorder: AudioRecording {
         onLevel: @escaping @Sendable (Float) -> Void
     ) async throws {
         guard !isRunning else { return }
-        samples.removeAll(keepingCapacity: true)
+        accumulator.reset()
 
         if let microphoneUniqueID {
             do {
@@ -57,10 +57,12 @@ public actor MicrophoneRecorder: AudioRecording {
         }
 
         let detector = self.detector
-        input.installTap(onBus: 0, bufferSize: 4_096, format: inputFormat) { [weak self] buffer, _ in
+        let accumulator = self.accumulator
+        input.installTap(onBus: 0, bufferSize: 4_096, format: inputFormat) { buffer, _ in
             guard let converted = Self.convert(buffer, using: converter, to: targetFormat) else { return }
             onLevel(detector.level(samples: converted[...]))
-            Task { await self?.append(converted) }
+            // Appended synchronously so buffers stay in capture order.
+            accumulator.append(converted)
         }
 
         engine.prepare()
@@ -81,11 +83,8 @@ public actor MicrophoneRecorder: AudioRecording {
         engine.stop()
         isRunning = false
 
-        let captured = samples
-        // Release the audio as soon as it is handed over (PRD §21).
-        samples = []
         return CapturedAudio(
-            samples: captured,
+            samples: accumulator.drain(),
             sampleRate: Self.targetSampleRate,
             deviceName: deviceName
         )
@@ -96,11 +95,7 @@ public actor MicrophoneRecorder: AudioRecording {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         isRunning = false
-        samples = []
-    }
-
-    private func append(_ newSamples: [Float]) {
-        samples.append(contentsOf: newSamples)
+        accumulator.reset()
     }
 
     private static func convert(

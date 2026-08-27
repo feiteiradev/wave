@@ -22,7 +22,7 @@ struct ModelSectionView: View {
                     ModelRow(
                         descriptor: descriptor,
                         isInstalled: installed?.id == descriptor.id,
-                        phase: installed?.id == descriptor.id ? nil : model.installPhase[kind],
+                        phase: model.installPhase[descriptor.id],
                         isBusy: isBusy
                     ) {
                         Task { await model.install(descriptor) }
@@ -30,7 +30,7 @@ struct ModelSectionView: View {
                 }
             }
 
-            if let phase = model.installPhase[kind] {
+            if let phase = activePhase {
                 Section { InstallPhaseView(phase: phase) }
             }
 
@@ -52,8 +52,13 @@ struct ModelSectionView: View {
         .task { await model.refreshInstalledModels() }
     }
 
+    /// The phase of whichever model of this kind is mid-install.
+    private var activePhase: ModelInstallPhase? {
+        ModelCatalog.models(of: kind).compactMap { model.installPhase[$0.id] }.first
+    }
+
     private var isBusy: Bool {
-        switch model.installPhase[kind] {
+        switch activePhase {
         case .downloading, .validating, .activating, .removingPrevious, .retrying: true
         default: false
         }

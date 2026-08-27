@@ -17,7 +17,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var waveform: [Float] = []
     @Published private(set) var installedSpeechModel: ModelDescriptor?
     @Published private(set) var installedCleanupModel: ModelDescriptor?
-    @Published private(set) var installPhase: [ModelKind: ModelInstallPhase] = [:]
+    /// Keyed by model id, so a failed download marks only the model the user
+    /// actually tried to install.
+    @Published private(set) var installPhase: [String: ModelInstallPhase] = [:]
     @Published private(set) var microphones: [AudioInputDevice] = []
     @Published private(set) var permissions: [Permission: Bool] = [:]
     @Published private(set) var hotkeyConflicts: [DictationMode] = []
@@ -192,22 +194,23 @@ final class AppModel: ObservableObject {
     /// Downloads and activates a model, keeping the current one until the new
     /// one has validated (PRD §9.2, AC9).
     func install(_ descriptor: ModelDescriptor) async {
-        installPhase[descriptor.kind] = .downloading(fraction: 0)
+        installPhase[descriptor.id] = .downloading(fraction: 0)
         do {
             _ = try await modelManager.install(descriptor) { [weak self] phase in
-                Task { @MainActor in self?.installPhase[descriptor.kind] = phase }
+                Task { @MainActor in self?.installPhase[descriptor.id] = phase }
             }
             await engines.invalidate(kind: descriptor.kind)
             await refreshInstalledModels()
         } catch {
-            installPhase[descriptor.kind] = .failed(needsManualRetry: true)
+            installPhase[descriptor.id] = .failed(needsManualRetry: true)
         }
     }
 
     func uninstallCleanupModel() async {
         await modelManager.uninstall(kind: .cleanup)
         await engines.invalidate(kind: .cleanup)
-        installPhase[.cleanup] = nil
+        installPhase.removeValue(forKey: ModelCatalog.defaultCleanupModel.id)
+        installedCleanupModel.map { installPhase.removeValue(forKey: $0.id) }
         await refreshInstalledModels()
     }
 

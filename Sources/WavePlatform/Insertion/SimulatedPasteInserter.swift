@@ -20,8 +20,12 @@ public struct SimulatedPasteInserter: TextInsertionStrategy {
 
     public func insert(_ text: String) async throws -> Bool {
         // Synthesizing key events needs the same trust as Accessibility.
-        guard AXIsProcessTrusted() else { return false }
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
+        // Refuse when nothing can receive the paste, so the clipboard rung —
+        // and its toast — still runs (PRD §23).
+        guard let element = FocusedTextElement.current(),
+              FocusedTextElement.acceptsText(element),
+              let source = CGEventSource(stateID: .combinedSessionState)
+        else { return false }
 
         guardian.place(text)
 

@@ -13,21 +13,11 @@ public struct AccessibilityInserter: TextInsertionStrategy {
     public init() {}
 
     public func insert(_ text: String) async throws -> Bool {
-        guard AXIsProcessTrusted() else { return false }
-
-        let system = AXUIElementCreateSystemWide()
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            system,
-            kAXFocusedUIElementAttribute as CFString,
-            &focused
-        ) == .success, let focusedElement = focused else { return false }
-
-        let element = focusedElement as! AXUIElement
+        guard let element = FocusedTextElement.current() else { return false }
 
         // Prefer replacing just the selection: that preserves the caret
         // position and anything already typed around it (PRD §22.1).
-        if isSettable(element, attribute: kAXSelectedTextAttribute) {
+        if FocusedTextElement.isSettable(element, attribute: kAXSelectedTextAttribute) {
             let status = AXUIElementSetAttributeValue(
                 element,
                 kAXSelectedTextAttribute as CFString,
@@ -37,7 +27,7 @@ public struct AccessibilityInserter: TextInsertionStrategy {
         }
 
         // Otherwise append to the whole value, keeping what is already there.
-        guard isSettable(element, attribute: kAXValueAttribute) else { return false }
+        guard FocusedTextElement.isSettable(element, attribute: kAXValueAttribute) else { return false }
         var existing: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &existing)
         let current = (existing as? String) ?? ""
@@ -47,11 +37,5 @@ public struct AccessibilityInserter: TextInsertionStrategy {
             (current + text) as CFTypeRef
         )
         return status == .success
-    }
-
-    private func isSettable(_ element: AXUIElement, attribute: String) -> Bool {
-        var settable: DarwinBoolean = false
-        let status = AXUIElementIsAttributeSettable(element, attribute as CFString, &settable)
-        return status == .success && settable.boolValue
     }
 }
