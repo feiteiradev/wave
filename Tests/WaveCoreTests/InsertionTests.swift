@@ -82,63 +82,63 @@ struct InsertionPipelineTests {
 struct ClipboardGuardTests {
     @Test("places the transcription on the clipboard")
     func placesText() {
-        let pasteboard = FakePasteboard("anterior")
-        ClipboardGuard(pasteboard: pasteboard).place("transcrição")
-        #expect(pasteboard.stringContents == "transcrição")
+        let clipboard = FakeClipboard("anterior")
+        ClipboardGuard(clipboard: clipboard).place("transcrição")
+        #expect(clipboard.stringContents == "transcrição")
     }
 
     @Test("restores the previous contents when untouched")
     func restoresWhenUntouched() {
-        let pasteboard = FakePasteboard("anterior")
-        let guardian = ClipboardGuard(pasteboard: pasteboard)
+        let clipboard = FakeClipboard("anterior")
+        let guardian = ClipboardGuard(clipboard: clipboard)
         guardian.place("transcrição")
         #expect(guardian.restoreIfUnchanged())
-        #expect(pasteboard.stringContents == "anterior")
+        #expect(clipboard.stringContents == "anterior")
     }
 
     @Test("does not overwrite something the user copied meanwhile")
     func doesNotClobberUserCopy() {
-        let pasteboard = FakePasteboard("anterior")
-        let guardian = ClipboardGuard(pasteboard: pasteboard)
+        let clipboard = FakeClipboard("anterior")
+        let guardian = ClipboardGuard(clipboard: clipboard)
         guardian.place("transcrição")
-        pasteboard.setStringContents("o utilizador copiou isto")
+        clipboard.setStringContents("o utilizador copiou isto")
         #expect(guardian.restoreIfUnchanged() == false)
-        #expect(pasteboard.stringContents == "o utilizador copiou isto")
+        #expect(clipboard.stringContents == "o utilizador copiou isto")
     }
 
     @Test("clears the clipboard when there was nothing to restore")
     func clearsWhenNoPrevious() {
-        let pasteboard = FakePasteboard(nil)
-        let guardian = ClipboardGuard(pasteboard: pasteboard)
+        let clipboard = FakeClipboard(nil)
+        let guardian = ClipboardGuard(clipboard: clipboard)
         guardian.place("transcrição")
         #expect(guardian.restoreIfUnchanged())
-        #expect(pasteboard.stringContents == nil)
+        #expect(clipboard.stringContents == nil)
     }
 
     @Test("a second dictation still restores the user's original clipboard")
     func keepsOriginalAcrossTwoDictations() {
-        let pasteboard = FakePasteboard("anterior")
-        let guardian = ClipboardGuard(pasteboard: pasteboard)
+        let clipboard = FakeClipboard("anterior")
+        let guardian = ClipboardGuard(clipboard: clipboard)
         guardian.place("primeira")
         guardian.place("segunda")
         #expect(guardian.restoreIfUnchanged())
-        #expect(pasteboard.stringContents == "anterior")
+        #expect(clipboard.stringContents == "anterior")
     }
 
     @Test("restoring twice is harmless")
     func restoreIsIdempotent() {
-        let pasteboard = FakePasteboard("anterior")
-        let guardian = ClipboardGuard(pasteboard: pasteboard)
+        let clipboard = FakeClipboard("anterior")
+        let guardian = ClipboardGuard(clipboard: clipboard)
         guardian.place("transcrição")
         #expect(guardian.restoreIfUnchanged())
-        pasteboard.setStringContents("outra coisa")
+        clipboard.setStringContents("outra coisa")
         #expect(guardian.restoreIfUnchanged() == false)
-        #expect(pasteboard.stringContents == "outra coisa")
+        #expect(clipboard.stringContents == "outra coisa")
     }
 
     @Test("reports whether a restore is pending")
     func reportsPendingRestore() {
-        let guardian = ClipboardGuard(pasteboard: FakePasteboard("anterior"))
+        let guardian = ClipboardGuard(clipboard: FakeClipboard("anterior"))
         #expect(guardian.isHoldingClipboard == false)
         guardian.place("transcrição")
         #expect(guardian.isHoldingClipboard)

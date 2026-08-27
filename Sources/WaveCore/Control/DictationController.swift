@@ -164,7 +164,7 @@ public actor DictationController {
 
     // MARK: - Pipeline
 
-    private func process(buffer: AudioBuffer, mode: DictationMode) async {
+    private func process(buffer: CapturedAudio, mode: DictationMode) async {
         let preferences = environment.preferences()
         let vocabulary = VocabularyManager(terms: preferences.vocabulary)
 
@@ -210,7 +210,7 @@ public actor DictationController {
     }
 
     private func transcribe(
-        buffer: AudioBuffer,
+        buffer: CapturedAudio,
         engine: any STTEngine,
         language: String,
         hotwords: [String]
@@ -228,7 +228,7 @@ public actor DictationController {
         // point of view this was always one dictation (PRD §11.3, AC6).
         var pieces: [String] = []
         for range in ranges {
-            let chunk = AudioBuffer(
+            let chunk = CapturedAudio(
                 samples: Array(buffer.samples[range]),
                 sampleRate: buffer.sampleRate,
                 deviceName: buffer.deviceName

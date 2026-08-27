@@ -9,7 +9,7 @@ private struct Harness {
     let cleanup: FakeCleanupEngine?
     let accessibility: RecordingStrategy
     let paste: RecordingStrategy
-    let pasteboard: FakePasteboard
+    let board: FakeClipboard
     let clipboard: ClipboardGuard
     let observer: StateRecorder
 
@@ -20,7 +20,7 @@ private struct Harness {
 }
 
 private func makeHarness(
-    buffer: AudioBuffer = speechBuffer(),
+    buffer: CapturedAudio = speechBuffer(),
     transcripts: [String] = ["olá mundo"],
     sttError: (any Error)? = nil,
     recorderError: (any Error)? = nil,
@@ -35,8 +35,8 @@ private func makeHarness(
     let stt = FakeSTTEngine(results: transcripts, error: sttError)
     let accessibility = RecordingStrategy(method: .accessibility, succeeds: accessibilitySucceeds)
     let paste = RecordingStrategy(method: .simulatedPaste, succeeds: pasteSucceeds)
-    let pasteboard = FakePasteboard("clipboard anterior")
-    let clipboard = ClipboardGuard(pasteboard: pasteboard)
+    let board = FakeClipboard("clipboard anterior")
+    let clipboard = ClipboardGuard(clipboard: board)
     let observer = StateRecorder()
 
     let environment = DictationController.Environment(
@@ -62,7 +62,7 @@ private func makeHarness(
         cleanup: cleanup,
         accessibility: accessibility,
         paste: paste,
-        pasteboard: pasteboard,
+        board: board,
         clipboard: clipboard,
         observer: observer
     )
@@ -183,7 +183,7 @@ struct DictationControllerFailureTests {
         await harness.controller.hotkeyReleased(mode: .clean)
 
         #expect(harness.accessibility.inserted.isEmpty)
-        #expect(harness.pasteboard.stringContents == "clipboard anterior")
+        #expect(harness.board.stringContents == "clipboard anterior")
         #expect(await harness.controller.currentHUD == .hidden)
         #expect(await harness.controller.currentState == .idle)
     }
@@ -222,7 +222,7 @@ struct DictationControllerFailureTests {
     @Test("a missing STT model shows the model error")
     func missingModelErrorShown() async {
         let recorder = FakeRecorder(buffer: speechBuffer())
-        let clipboard = ClipboardGuard(pasteboard: FakePasteboard())
+        let clipboard = ClipboardGuard(clipboard: FakeClipboard())
         let environment = DictationController.Environment(
             recorder: recorder,
             speechEngine: { nil },
@@ -262,7 +262,7 @@ struct DictationControllerInsertionTests {
         await harness.controller.hotkeyPressed(mode: .clean)
         await harness.controller.hotkeyReleased(mode: .clean)
 
-        #expect(harness.pasteboard.stringContents == "Olá mundo")
+        #expect(harness.board.stringContents == "Olá mundo")
         #expect(await harness.controller.currentHUD == .toast(DictationController.clipboardToastMessage))
     }
 
@@ -279,7 +279,7 @@ struct DictationControllerInsertionTests {
         await harness.controller.hotkeyReleased(mode: .clean)
         try? await Task.sleep(nanoseconds: 50_000_000)
 
-        #expect(harness.pasteboard.stringContents == "clipboard anterior")
+        #expect(harness.board.stringContents == "clipboard anterior")
     }
 
     @Test("a clipboard the user changed is left alone")
@@ -293,9 +293,9 @@ struct DictationControllerInsertionTests {
         )
         await harness.controller.hotkeyPressed(mode: .clean)
         await harness.controller.hotkeyReleased(mode: .clean)
-        harness.pasteboard.setStringContents("o utilizador copiou outra coisa")
+        harness.board.setStringContents("o utilizador copiou outra coisa")
         #expect(harness.clipboard.restoreIfUnchanged() == false)
-        #expect(harness.pasteboard.stringContents == "o utilizador copiou outra coisa")
+        #expect(harness.board.stringContents == "o utilizador copiou outra coisa")
     }
 
     @Test("simulated paste is used when Accessibility declines")
@@ -325,7 +325,7 @@ struct DictationControllerActivationTests {
             let gate: Locked<Bool>
             init(gate: Locked<Bool>) { self.gate = gate }
             func prepare() async throws {}
-            func transcribe(_ buffer: AudioBuffer, language: String, hotwords: [String]) async throws -> String {
+            func transcribe(_ buffer: CapturedAudio, language: String, hotwords: [String]) async throws -> String {
                 while !gate.current { await Task.yield() }
                 return "olá"
             }
@@ -333,7 +333,7 @@ struct DictationControllerActivationTests {
 
         let recorder = FakeRecorder(buffer: speechBuffer())
         let accessibility = RecordingStrategy(method: .accessibility, succeeds: true)
-        let clipboard = ClipboardGuard(pasteboard: FakePasteboard())
+        let clipboard = ClipboardGuard(clipboard: FakeClipboard())
         let environment = DictationController.Environment(
             recorder: recorder,
             speechEngine: { SlowSTT(gate: gate) },

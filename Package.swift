@@ -38,6 +38,11 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
+            name: "WavePlatformTests",
+            dependencies: ["WavePlatform"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
             name: "WaveCoreTests",
             dependencies: ["WaveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]

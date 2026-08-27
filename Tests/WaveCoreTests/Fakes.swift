@@ -9,11 +9,11 @@ final class FakeRecorder: AudioRecording, @unchecked Sendable {
         var requestedMicrophone: String??
     }
 
-    private let buffer: AudioBuffer
+    private let buffer: CapturedAudio
     private let startError: (any Error)?
     private let state = Locked(State())
 
-    init(buffer: AudioBuffer, startError: (any Error)? = nil) {
+    init(buffer: CapturedAudio, startError: (any Error)? = nil) {
         self.buffer = buffer
         self.startError = startError
     }
@@ -27,7 +27,7 @@ final class FakeRecorder: AudioRecording, @unchecked Sendable {
         onLevel(0.42)
     }
 
-    func stop() async -> AudioBuffer {
+    func stop() async -> CapturedAudio {
         state.withValue { $0.stopCount += 1 }
         return buffer
     }
@@ -64,7 +64,7 @@ final class FakeSTTEngine: STTEngine, @unchecked Sendable {
 
     func prepare() async throws {}
 
-    func transcribe(_ buffer: AudioBuffer, language: String, hotwords: [String]) async throws -> String {
+    func transcribe(_ buffer: CapturedAudio, language: String, hotwords: [String]) async throws -> String {
         if let error { throw error }
         return state.withValue {
             $0.receivedLanguage = language
@@ -125,7 +125,7 @@ final class RecordingStrategy: TextInsertionStrategy, @unchecked Sendable {
     var inserted: [String] { texts.current }
 }
 
-final class FakePasteboard: Pasteboard, @unchecked Sendable {
+final class FakeClipboard: SystemClipboard, @unchecked Sendable {
     private let value: Locked<String?>
 
     init(_ value: String? = nil) { self.value = Locked(value) }
@@ -161,14 +161,14 @@ final class StateRecorder: @unchecked Sendable {
     var recordedHUDs: [HUDState] { huds.current }
 }
 
-func speechBuffer(seconds: Double = 2, sampleRate: Double = 16_000) -> AudioBuffer {
+func speechBuffer(seconds: Double = 2, sampleRate: Double = 16_000) -> CapturedAudio {
     let count = Int(seconds * sampleRate)
     let samples = (0..<count).map { index in
         0.4 * sin(Float(index) * 2 * .pi * 220 / Float(sampleRate))
     }
-    return AudioBuffer(samples: samples, sampleRate: sampleRate)
+    return CapturedAudio(samples: samples, sampleRate: sampleRate)
 }
 
-func silentBuffer(seconds: Double = 2, sampleRate: Double = 16_000) -> AudioBuffer {
-    AudioBuffer(samples: [Float](repeating: 0, count: Int(seconds * sampleRate)), sampleRate: sampleRate)
+func silentBuffer(seconds: Double = 2, sampleRate: Double = 16_000) -> CapturedAudio {
+    CapturedAudio(samples: [Float](repeating: 0, count: Int(seconds * sampleRate)), sampleRate: sampleRate)
 }

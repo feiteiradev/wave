@@ -2,7 +2,7 @@ import Foundation
 
 /// A recording handed to the STT engine. Samples are mono float PCM in memory
 /// (PRD §11.2) and are discarded as soon as transcription completes (PRD §21).
-public struct AudioBuffer: Sendable {
+public struct CapturedAudio: Sendable {
     public var samples: [Float]
     public var sampleRate: Double
     /// Human-readable name of the capture device, for diagnostics only.
@@ -28,7 +28,7 @@ public protocol STTEngine: Sendable {
     func prepare() async throws
     /// Transcribes one chunk. `hotwords` are vocabulary hints; engines that do
     /// not support biasing may ignore them (PRD §19.1).
-    func transcribe(_ buffer: AudioBuffer, language: String, hotwords: [String]) async throws -> String
+    func transcribe(_ buffer: CapturedAudio, language: String, hotwords: [String]) async throws -> String
 }
 
 /// Natural-language cleanup, optional by design (PRD §8).
@@ -50,7 +50,7 @@ public protocol AudioRecording: Sendable {
         onLevel: @escaping @Sendable (Float) -> Void
     ) async throws
     /// Stops capture and returns everything recorded.
-    func stop() async -> AudioBuffer
+    func stop() async -> CapturedAudio
     /// Abandons capture without producing a buffer.
     func cancel() async
 }

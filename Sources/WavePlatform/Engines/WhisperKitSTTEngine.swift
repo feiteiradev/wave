@@ -49,7 +49,7 @@ public actor WhisperKitSTTEngine: STTEngine {
         options.task = .transcribe
         options.withoutTimestamps = true
         // Wave chunks the audio itself so it can cut on silence (PRD §11.3).
-        options.chunkingStrategy = .none
+        options.chunkingStrategy = ChunkingStrategy.none
 
         // Vocabulary as a decoder prompt — Whisper's supported form of hotword
         // biasing (PRD §19.1).

@@ -2,7 +2,7 @@ import Foundation
 
 /// The clipboard Wave writes to. Abstracted so the restore rules can be tested
 /// without touching the real `NSPasteboard`.
-public protocol Pasteboard: AnyObject, Sendable {
+public protocol SystemClipboard: AnyObject, Sendable {
     var stringContents: String? { get }
     func setStringContents(_ value: String?)
 }
@@ -15,13 +15,13 @@ public protocol Pasteboard: AnyObject, Sendable {
 /// the user just copied would be worse than leaving a stale transcription
 /// behind.
 public final class ClipboardGuard: @unchecked Sendable {
-    private let pasteboard: any Pasteboard
+    private let clipboard: any SystemClipboard
     private let lock = NSLock()
     private var parkedText: String?
     private var previousContents: String?
 
-    public init(pasteboard: any Pasteboard) {
-        self.pasteboard = pasteboard
+    public init(clipboard: any SystemClipboard) {
+        self.clipboard = clipboard
     }
 
     /// True while Wave has text parked on the clipboard awaiting restore.
@@ -36,10 +36,10 @@ public final class ClipboardGuard: @unchecked Sendable {
         // A second dictation before the first restore: keep the *original*
         // contents, not Wave's own previous transcription.
         if parkedText == nil {
-            previousContents = pasteboard.stringContents
+            previousContents = clipboard.stringContents
         }
         parkedText = text
-        pasteboard.setStringContents(text)
+        clipboard.setStringContents(text)
     }
 
     /// Restores the saved clipboard, but only if the clipboard still holds
@@ -48,13 +48,13 @@ public final class ClipboardGuard: @unchecked Sendable {
     public func restoreIfUnchanged() -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard let parkedText else { return false }
-        guard pasteboard.stringContents == parkedText else {
+        guard clipboard.stringContents == parkedText else {
             // The user copied something else. Stand down and forget.
             self.parkedText = nil
             self.previousContents = nil
             return false
         }
-        pasteboard.setStringContents(previousContents)
+        clipboard.setStringContents(previousContents)
         self.parkedText = nil
         self.previousContents = nil
         return true

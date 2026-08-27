@@ -11,8 +11,13 @@ import WaveCore
 /// way fire while any other application is focused.
 public final class GlobalHotkeyMonitor: @unchecked Sendable {
     public struct Registration {
-        let mode: DictationMode
-        let binding: HotkeyBinding
+        public let mode: DictationMode
+        public let binding: HotkeyBinding
+
+        public init(mode: DictationMode, binding: HotkeyBinding) {
+            self.mode = mode
+            self.binding = binding
+        }
     }
 
     private struct Installed {
