@@ -21,6 +21,15 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case modelDownloadFinished(id: String, bytes: Int64)
     case modelDownloadFailed(id: String, willRetry: Bool)
     case inserted(method: InsertionMethod)
+    /// A rung reported success but the app never showed the text, so the chain
+    /// moved on. Counts only — the text itself still has no way in.
+    case insertionDeclined(
+        method: InsertionMethod,
+        before: Int,
+        expected: Int,
+        after: Int,
+        waitedMilliseconds: Int
+    )
     case clipboardRestored(restored: Bool)
     case activationIgnored
     case failed(WaveError)
@@ -59,6 +68,9 @@ public enum DiagnosticEvent: Sendable, Equatable {
             "Model download failed id=\(id) willRetry=\(willRetry)"
         case let .inserted(method):
             "Insertion: \(method.rawValue)"
+        case let .insertionDeclined(method, before, expected, after, waited):
+            "Insertion declined: \(method.rawValue) length before=\(before) expected=\(expected) "
+                + "after=\(after) waited=\(waited)ms"
         case let .clipboardRestored(restored):
             "Clipboard restore: \(restored ? "restored" : "skipped, changed by user")"
         case .activationIgnored:

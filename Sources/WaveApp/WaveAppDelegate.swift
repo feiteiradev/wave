@@ -15,6 +15,16 @@ final class WaveAppDelegate: NSObject, NSApplicationDelegate {
         // A menu-bar utility, not an app with a Dock icon (PRD §7 G7, §24).
         NSApp.setActivationPolicy(.accessory)
 
+        // Insertion probe: run the real chain against whatever is focused,
+        // print which rung took it, exit. No hotkeys, no HUD, no recording.
+        // The insertion chain cannot be unit-tested — it talks to the
+        // Accessibility API of whatever app happens to be focused — so this is
+        // how a "which rung wins in app X" claim gets checked. See README.
+        if CommandLine.arguments.contains("--wave-probe") {
+            Task { await Self.runInsertionProbe() }
+            return
+        }
+
         hud = NotchHUDController(model: model)
         menuBar = MenuBarController(model: model) { [weak self] in
             self?.showSettings()
@@ -26,6 +36,24 @@ final class WaveAppDelegate: NSObject, NSApplicationDelegate {
                 showOnboarding()
             }
         }
+    }
+
+    private static func runInsertionProbe() async {
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        let logger = DiagnosticsLogger(directory: AppModel.defaultLogsDirectory())
+        let guardian = ClipboardGuard(clipboard: MacSystemClipboard())
+        let pipeline = InsertionPipeline(strategies: [
+            AccessibilityInserter(logger: logger),
+            SimulatedPasteInserter(guardian: guardian),
+            ClipboardInsertionStrategy(guardian: guardian),
+        ])
+        let method = await pipeline.insert("WÁVÉPROBE🙂")
+        // Written to a file, not stderr: the probe is launched with `open`,
+        // which keeps the app's own Accessibility grant but discards stdio.
+        let line = "wave-probe: method=\(method?.rawValue ?? "none")\n"
+        let url = AppModel.defaultLogsDirectory().appendingPathComponent("probe.log")
+        try? Data(line.utf8).write(to: url)
+        exit(0)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -78,7 +78,7 @@ final class AppModel: ObservableObject {
             speechEngine: { await engines.currentSpeechEngine() },
             cleanupEngine: { await engines.currentCleanupEngine() },
             insertion: InsertionPipeline(strategies: [
-                AccessibilityInserter(),
+                AccessibilityInserter(logger: logger),
                 SimulatedPasteInserter(guardian: clipboard),
                 ClipboardInsertionStrategy(guardian: clipboard),
             ]),

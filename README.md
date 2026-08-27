@@ -12,7 +12,7 @@ internet is explicitly downloading a model.
 ## Build
 
 ```sh
-make test    # 117 unit tests
+make test    # 121 unit tests
 make app     # builds and signs build/Wave.app
 make run     # builds, signs and launches
 ```
@@ -21,6 +21,12 @@ make run     # builds, signs and launches
 bundle ID. This matters: macOS keys the Microphone and Accessibility grants to
 the signing identity, so an ad-hoc signature would silently revoke Accessibility
 on every rebuild. Override with `SIGN_IDENTITY=…` if you need a different one.
+
+Insertion cannot be unit-tested — it writes through the Accessibility API into
+whatever app is focused — so `make app` then
+`open -na build/Wave.app --args --wave-probe` runs the real fallback chain
+against the focused app and writes the winning rung to
+`~/Library/Logs/Wave/probe.log`.
 
 ## First run
 
