@@ -282,11 +282,18 @@ public actor DictationController {
 
         if method == .clipboard {
             setHUD(.toast(Self.clipboardToastMessage))
-            scheduleClipboardRestore(after: preferences.clipboardRetentionSeconds)
             hideHUD(after: preferences.errorDisplaySeconds)
         } else {
             setHUD(.done)
             hideHUD(after: preferences.completionDisplaySeconds)
+        }
+
+        // Simulated paste borrows the clipboard too, so the restore is driven
+        // by whether Wave is actually holding it — not by which rung won.
+        // Otherwise a successful paste would leave the transcription sitting on
+        // the user's clipboard for good (PRD §22.4).
+        if environment.clipboard.isHoldingClipboard {
+            scheduleClipboardRestore(after: preferences.clipboardRetentionSeconds)
         }
         setState(.idle)
     }

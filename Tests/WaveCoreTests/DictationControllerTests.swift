@@ -473,3 +473,81 @@ struct DictationControllerChunkingTests {
         #expect(harness.accessibility.inserted == ["Olá"])
     }
 }
+
+@Suite("DictationController — clipboard borrowed by simulated paste")
+struct DictationControllerPasteClipboardTests {
+    /// Stands in for `SimulatedPasteInserter`, which puts the text on the
+    /// clipboard and synthesizes ⌘V.
+    private struct BorrowingPasteStrategy: TextInsertionStrategy {
+        let method: InsertionMethod = .simulatedPaste
+        let guardian: ClipboardGuard
+
+        func insert(_ text: String) async throws -> Bool {
+            guardian.place(text)
+            return true
+        }
+    }
+
+    private func makeController(
+        scheduler: any Scheduler
+    ) -> (DictationController, FakeClipboard, ClipboardGuard) {
+        let board = FakeClipboard("clipboard anterior")
+        let clipboard = ClipboardGuard(clipboard: board)
+        let environment = DictationController.Environment(
+            recorder: FakeRecorder(buffer: speechBuffer()),
+            speechEngine: { FakeSTTEngine(result: "olá mundo") },
+            cleanupEngine: { nil },
+            insertion: InsertionPipeline(strategies: [
+                RecordingStrategy(method: .accessibility, succeeds: false),
+                BorrowingPasteStrategy(guardian: clipboard),
+            ]),
+            clipboard: clipboard,
+            preferences: { Preferences() },
+            scheduler: scheduler
+        )
+        return (DictationController(environment: environment), board, clipboard)
+    }
+
+    @Test("a successful simulated paste still restores the user's clipboard")
+    func pasteRestoresClipboard() async {
+        let (controller, board, _) = makeController(scheduler: ImmediateScheduler())
+        await controller.hotkeyPressed(mode: .clean)
+        await controller.hotkeyReleased(mode: .clean)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(board.stringContents == "clipboard anterior")
+    }
+
+    @Test("the paste itself shows no clipboard toast")
+    func pasteShowsNoToast() async {
+        let (controller, _, _) = makeController(scheduler: NeverScheduler())
+        await controller.hotkeyPressed(mode: .clean)
+        await controller.hotkeyReleased(mode: .clean)
+        #expect(await controller.currentHUD == .done)
+    }
+
+    @Test("nothing is scheduled when no rung borrowed the clipboard")
+    func noRestoreWhenClipboardUntouched() async {
+        let board = FakeClipboard("clipboard anterior")
+        let clipboard = ClipboardGuard(clipboard: board)
+        let environment = DictationController.Environment(
+            recorder: FakeRecorder(buffer: speechBuffer()),
+            speechEngine: { FakeSTTEngine(result: "olá mundo") },
+            cleanupEngine: { nil },
+            insertion: InsertionPipeline(strategies: [
+                RecordingStrategy(method: .accessibility, succeeds: true),
+            ]),
+            clipboard: clipboard,
+            preferences: { Preferences() },
+            scheduler: ImmediateScheduler()
+        )
+        let controller = DictationController(environment: environment)
+
+        await controller.hotkeyPressed(mode: .clean)
+        await controller.hotkeyReleased(mode: .clean)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(board.stringContents == "clipboard anterior")
+        #expect(clipboard.isHoldingClipboard == false)
+    }
+}
