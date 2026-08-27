@@ -1,4 +1,4 @@
-.PHONY: build test app icon run clean
+.PHONY: build test app dmg icon run clean
 
 build:
 	swift build
@@ -18,3 +18,6 @@ run: app
 clean:
 	swift package clean
 	rm -rf build
+
+dmg:
+	./Scripts/make-dmg.sh

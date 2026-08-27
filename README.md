@@ -15,6 +15,7 @@ internet is explicitly downloading a model.
 make test    # 121 unit tests
 make app     # builds and signs build/Wave.app
 make run     # builds, signs and launches
+make dmg     # builds and packages build/Wave.dmg for install
 ```
 
 `Scripts/make-app.sh` signs with an Apple Development identity and a fixed
