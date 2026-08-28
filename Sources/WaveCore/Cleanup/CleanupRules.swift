@@ -10,11 +10,15 @@ import Foundation
 public struct CleanupRules: Sendable {
     public init() {}
 
+    private let spokenPunctuation = SpokenPunctuation()
+
     private static let sentenceTerminators: Set<Character> = [".", "!", "?", "…"]
     private static let closingPunctuation: Set<Character> = [",", ".", "!", "?", ";", ":", "…", "%"]
 
     public func apply(to text: String) -> String {
-        var result = collapseWhitespace(text)
+        // Runs first so the symbols it produces are spaced and capitalized by
+        // the rules below, exactly as if the STT had emitted them (PRD §7.2).
+        var result = collapseWhitespace(spokenPunctuation.apply(to: text))
         guard !result.isEmpty else { return "" }
         result = tightenPunctuation(result)
         result = collapseImmediateRepetitions(result)
@@ -50,7 +54,14 @@ public struct CleanupRules: Sendable {
             let character = characters[index]
             if Self.closingPunctuation.contains(character) {
                 while output.last == " " { output.removeLast() }
-                output.append(character)
+                // Whisper punctuates on prosody, so a dictated "ponto final"
+                // arrives as both a spoken command and the model's own period.
+                // Absorbing the duplicate is what keeps the two from colliding.
+                // ponytail: this also flattens a deliberate "!!" — dictation
+                // never produces one, revisit if that turns out false.
+                if output.last != character {
+                    output.append(character)
+                }
                 // Don't split "3.14" or "10:30" — only space out prose.
                 let next = index + 1 < characters.count ? characters[index + 1] : nil
                 let previous = output.dropLast().last
